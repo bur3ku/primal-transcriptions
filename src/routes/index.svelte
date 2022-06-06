@@ -3,7 +3,8 @@
   import { onMount } from "svelte";
   import {Howl} from 'howler';
 
-
+  let resetBackground = false;
+  let termList = ["test"];
   let audio;
   let paused = true;
   let shiftIsPressedDown = false;
@@ -48,7 +49,18 @@ onMount(()=>{
   editor.deleteText(0,20); //remove 'Hello World!'
   editor.on('text-change', (delta, oldDelta, source) => {
     if(source === 'user'){
-      console.log("text change");
+      if(resetBackground){
+        editor.formatText(editor.getSelection().index - 1, 1, {background:"#ae9e8b"});
+        resetBackground = false;
+      }
+      const text = editor.getText(Math.max(0,editor.scroll.length() - 50), editor.scroll.length()-1);
+      const arr = text.split(" ");
+      const lastWord = arr[arr.length - 1];
+      console.log(lastWord);
+      if(termList.includes(lastWord)) {
+        editor.formatText(editor.getSelection().index - lastWord.length, lastWord.length, {background:"#dbd8d1"})
+        resetBackground = true;
+      }
     }
   })
   audio = document.getElementById("audio");
