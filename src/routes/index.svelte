@@ -1,6 +1,9 @@
+
 <script>
   import { onMount } from "svelte";
   import {Howl} from 'howler';
+
+
   let audio;
   let paused = true;
   let shiftIsPressedDown = false;
@@ -33,6 +36,21 @@
     audio.play();
   }
 onMount(()=>{
+  var editor = new Quill('#editor', {
+    modules: { 
+      toolbar: [
+        [{'size': ['small', false, 'large', 'huge']}]
+      ]
+    },
+    theme: 'snow',
+    placeholder: "Plain text. Sizes are for viewing convenience and will be ignored on export"
+  });
+  editor.deleteText(0,20); //remove 'Hello World!'
+  editor.on('text-change', (delta, oldDelta, source) => {
+    if(source === 'user'){
+      console.log("text change");
+    }
+  })
   audio = document.getElementById("audio");
   document.getElementById("upload").addEventListener("change", handleFiles, false);
   document.addEventListener("keyup", (e)=>{
@@ -78,8 +96,10 @@ onMount(()=>{
     </div>
     
   </div>
-  <div id="right">
-    <h1 class="text-3xl font-bold underline">hello world</h1>
+  <div class="m-10 w-4/5 p-0 bg-[#ae9e8b]">
+    <div id="editor">
+      <p>Hello World!</p>
+    </div>
   </div>
 </div>
 
@@ -102,11 +122,6 @@ onMount(()=>{
     display:flex;
     width:100%;
     height:100vh;
-  }
-  #right{
-    width:80%;
-    height:100%;
-    background-color: rgb(174, 158, 139);
   }
   :global(body){
     margin:0;
