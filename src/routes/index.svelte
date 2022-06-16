@@ -55,15 +55,18 @@
   const removeHilightsInEditor = (term) => {
     const text = editor.getText();
     let counter = 0;
-    for(let i = editor.scroll.length()-1; i > 0; i--){
+    for(let i = editor.scroll.length()-1; i >= 0; i--){
       if(text[i] === " "){
         const curWord = text.substr(i+1, counter).trim();
-        term.synonyms.forEach((synonym)=>{
-        })
         if(curWord === term.name || term.synonyms.some((synonym)=>synonym === curWord)) {
           editor.formatText(i+1, counter, {background:"#dbd8d1"});
         }
         counter = 0;
+      }else if(i===0){
+        const curWord = text.substr(i,counter+1).trim();
+        if(curWord === term.name || term.synonyms.some((synonym)=>synonym === curWord)) {
+          editor.formatText(i, counter+1, {background:"#dbd8d1"});
+        }
       }else{
         counter++;
       }
@@ -287,7 +290,7 @@ const dontSetExcerpts = () => {
           if(controlIsPressedDown || newSynonym.length===0){
             e.preventDefault();
             addHilightsInEditor(term);
-            terms[term.name] = {synonyms: term.synonyms, parents: term.parents, children:term.children,excerpts: term.excerpts}
+            terms[term.name] = {name:term.name, synonyms: term.synonyms, parents: term.parents, children:term.children,excerpts: term.excerpts}
             term = {name:"",parents:[],children:[],synonyms:[],excerpts: []};
             editor.setSelection(editor.scroll.length()-1,0);
             document.getElementById('container').style.opacity = 1;
@@ -317,6 +320,7 @@ const dontSetExcerpts = () => {
         delete terms[term.name];
         removeHilightsInEditor(term);
         term={name:"",synonyms:[],parents:[],children:[],excerpts: []}
+        document.getElementById('container').style.opacity = 1;
       }}>Delete</button>
     </div>
   </div>
@@ -345,7 +349,22 @@ const dontSetExcerpts = () => {
         <div id="progressBar" style="--the-width:{audioBarWidth}"></div>
       </div>
     </div>
-
+    <div>
+      Terms: 
+      {#each Object.keys(terms) as key (key)}
+        <span class="cursor-pointer rounded-sm bg-[#dbd8d1]" on:click={()=>{
+          removeHilightsInEditor(terms[key]);
+          deletedTerms.push(terms[key]);
+          deletedTerms = deletedTerms;
+          delete terms[key];
+        }}>{key}</span>
+        {#if terms[key].synonyms.length>0}→{/if}
+        {#each terms[key].synonyms as synonym, i}
+          {synonym}{i<terms[key].synonyms.length-1?",":""}
+        {/each}
+        <span>.&nbsp;</span>
+      {/each}
+    </div>
     <div class="bg-[#dbd8d1] h-[90%]">
       <div id="editor">
       </div>
