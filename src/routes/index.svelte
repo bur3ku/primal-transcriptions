@@ -19,11 +19,13 @@
   let newParent = "";
   let editor;
   let settingExcerpts = false;
-  let settingTerm = false;
+  let loadingAudio = false;
+  let audioFileName = "";
+  let showInstructions = false;
 
   let updateProgressBar = () => {
     const newWidth = (audio.seek() / audio.duration()) * 100;
-    audioBarWidth = newWidth + "px";
+    audioBarWidth = newWidth + "%";
     setTimeout(() => {
       updateProgressBar();
     }, 1000);
@@ -31,11 +33,15 @@
   
   function handleFiles(event) {
     var files = event.target.files;
+    audio?.pause();
     audio = new Howl({
       src: URL.createObjectURL(files[0]),
       format: 'mp3'
     });
+    audioFileName = files[0].name;
+    loadingAudio = true;
     audio.once('load',()=>{
+      loadingAudio=false;
       updateProgressBar();
     })
     audio.on('pause',()=>{
@@ -182,6 +188,7 @@ onMount(()=>{
           term.name=key;
         }
       });
+      console.log("term",term);
       setTimeout(()=>document.getElementById("synonym-input").select(),100);
     }
     else if(e.key==="Alt") altIsPressedDown=true;
@@ -216,6 +223,45 @@ const dontSetExcerpts = () => {
 }
 </script>
 <div>
+  {#if showInstructions}
+  <div class="absolute flex w-screen h-screen justify-center items-center">
+    <div class="overflow-scroll bg-[#DBD8D1] border-black border-2 z-20 h-[80vh]">
+        <h1 class="text-lg text-center mt-5">Instructions</h1>
+
+        <h1 class="text-lg mt-2">Audio Navigation Keybindings</h1>
+        <ul>
+          <li>Play/Pause: <span class="rounded-sm bg-[#dbd8d1]">Tab</span></li>
+          <li>Seek Left: <span class="rounded-sm bg-[#dbd8d1]">Shift</span> <span class="rounded-sm bg-[#dbd8d1]">{"<"}</span></li>
+          <li>Seek Right: <span class="rounded-sm bg-[#dbd8d1]">Shift</span> <span class="rounded-sm bg-[#dbd8d1]">{">"}</span></li>
+        </ul>
+        <h1 class="text-lg mt-2">Terms</h1>
+        <ul>
+          <li>Put the cursor on a word and press <span class="rounded-sm bg-[#dbd8d1]">alt</span> <span class="rounded-sm bg-[#dbd8d1]">shift</span> <span class="rounded-sm bg-[#dbd8d1]">+</span> to add it as a term</li>
+        </ul>
+        <h1 class="text-lg mt-2">Excerpts</h1>
+        <ul>
+          <li>Press "Set Excerpts" below the textbox.</li>
+  
+          <li class="mt-3">Next excerpt: <span class="rounded-sm bg-[#dbd8d1]">shift</span> <span class="rounded-sm bg-[#dbd8d1]">{">"}</span></li>
+          <li>Previous excerpt: <span class="rounded-sm bg-[#dbd8d1]">shift</span> <span class="rounded-sm bg-[#dbd8d1]">{"<"}</span></li>
+  
+          <li class="mt-3">Expanding excerpts TL;DR: <span class="rounded-sm bg-[#dbd8d1]">a</span>/<span class="rounded-sm bg-[#dbd8d1]">A</span> and <span class="rounded-sm bg-[#dbd8d1]">d</span>/<span class="rounded-sm bg-[#dbd8d1]">D</span> for left side of excerpt, <span class="rounded-sm bg-[#dbd8d1]">j</span>/<span class="rounded-sm bg-[#dbd8d1]">J</span> and <span class="rounded-sm bg-[#dbd8d1]">l</span>/<span class="rounded-sm bg-[#dbd8d1]">L</span> for right side</li>
+          <li class="mt-3">Expand left side of excerpt by 1 word: <span class="rounded-sm bg-[#dbd8d1]">A</span></li>
+          <li>Expand left side of excerpt by 10 words:  <span class="rounded-sm bg-[#dbd8d1]">a</span></li>
+          <li>Contract left side of except by 1 word: <span class="rounded-sm bg-[#dbd8d1]">D</span></li>
+          <li>Contract left side of except by 10 words: <span class="rounded-sm bg-[#dbd8d1]">d</span></li>
+          
+          <li class="mt-3">Expand right side of excerpt by 1 word: <span class="rounded-sm bg-[#dbd8d1]">L</span></li>
+          <li>Expand right side of excerpt by 10 words:  <span class="rounded-sm bg-[#dbd8d1]">l</span></li>
+          <li>Contract right side of except by 1 word: <span class="rounded-sm bg-[#dbd8d1]">J</span></li>
+        </ul>
+        <div class="flex justify-center w-full">
+          <button class="bg-red-300" on:click={()=>{document.getElementById('container').style.opacity = 1; showInstructions=false}}>Close</button>
+
+        </div>
+    </div>  
+  </div>
+  {/if}
   {#if settingExcerpts}
     <SetExcerpts close={dontSetExcerpts} editor={editor} terms={terms}/>
   {/if}
@@ -241,7 +287,7 @@ const dontSetExcerpts = () => {
           if(controlIsPressedDown || newSynonym.length===0){
             e.preventDefault();
             addHilightsInEditor(term);
-            terms[term.name] = {synonyms: term.synonyms, parents: term.parents,excerpts: term.excerpts}
+            terms[term.name] = {synonyms: term.synonyms, parents: term.parents, children:term.children,excerpts: term.excerpts}
             term = {name:"",parents:[],children:[],synonyms:[],excerpts: []};
             editor.setSelection(editor.scroll.length()-1,0);
             document.getElementById('container').style.opacity = 1;
@@ -275,16 +321,21 @@ const dontSetExcerpts = () => {
     </div>
   </div>
 {/if}
+</div>
 <div class="p-5" id="container">
 
     
   <div class="flex items-center justify-center w-1/5 h-1/1">
     <div class="flex flex-col w-1/1 grow">
       <label id="uploadLabel" class="flex justify-center m-2" for="upload">
-        <div id="uploadFile" class="border-black border-2 p-2 flex justify-center items-center">Upload Audio File...</div>
+        <div id="uploadFile" class="cursor-pointer border-black border-2 p-2 flex justify-center items-center">Upload Audio File...</div>
       </label>
+      {#if loadingAudio}<h1 class="text-lg bg-[green]">Wait, loading {audioFileName}...</h1>{/if}
+      {#if !loadingAudio && audioFileName.length>0}<h1 class="text-lg bg-[green]">Loaded {audioFileName}</h1>{/if}
       <input type="file" id="upload" />
-     
+      <div class="flex justify-center">
+        <button style="box-shadow:2px 3px;border:2px solid black" on:click={()=>{document.getElementById('container').style.opacity = 0.2;showInstructions=true}}>Instructions</button>
+      </div>
     </div>
     
   </div>
@@ -306,7 +357,6 @@ const dontSetExcerpts = () => {
 
   </div>
 
-</div>
 </div>
 
 
