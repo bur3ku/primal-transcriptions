@@ -348,7 +348,6 @@ const dontSetExcerpts = () => {
 
     <div class="bg-[#dbd8d1] h-[90%]">
       <div id="editor">
-        <p>test neurological 1 neurological 2 neurological 3 neurological 4 neurological 5 test neurological 6 neurological 7 neurological 8 neurological 9 neurological 10 neurological 11 neurological 12 neurological 13 neurological 14 neurological 15 neurological 16 test</p>
       </div>
     </div>
     <div class="flex justify-center items-center h-[10%]">
