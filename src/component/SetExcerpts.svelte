@@ -1,6 +1,8 @@
 <script>
 export let editor;
 export let terms;
+export let close;
+
 const text = editor.getText();
 const textArr = text.split(" ");
 
@@ -42,13 +44,13 @@ let curTermsKeysIndex = 0;
 
 const prevTerm = () => {
   curTermsKeysIndex--;
-  excerpts.setIndexes();
+  excerpts.setTermIndexes();
   excerpts.curIndex = 0;
 }
 
 const nextTerm = () => {
   curTermsKeysIndex++;
-  excerpts.setIndexes();
+  excerpts.setTermIndexes();
   excerpts.curIndex = 0;
 }
 
@@ -88,7 +90,8 @@ let excerpts = {
   disabledFromRight:false,
   disabledFromLeft:false,
   indexes: [],
-  setIndexes: function() {
+  setTermIndexes: function() {
+    if(curTermsKeys.length===0)return;
     const curTermName = curTermsKeys[curTermsKeysIndex];
     let matches = [...text.matchAll(new RegExp("(^|[^a-zA-Z])"+curTermName+"(?=([^a-zA-Z]|$))",'g'))].map(a => a[0].length > curTermName.length ? a.index+1:a.index);
     terms[curTermName].synonyms.forEach((synonym)=>{
@@ -106,14 +109,11 @@ let excerpts = {
     for(i = this.curIndex; i < this.indexes.length && i >= 0; i += direction){
       if((this.indexes[i].index < beginningIndex || this.indexes[i].index >= endIndex)) {
         if((direction === 1 && this.indexes[i].disabledFromLeft) || (direction === -1 && this.indexes[i].disabledFromRight)) {
-          console.log("direction",direction);
           if(direction === 1 && this.indexes[i].disabledFromLeft) {
             this.indexes[i].disabledFromLeft = false;
-            console.log(i,"disabledFromLeft = false");
             excerpts = excerpts;
           }
           else if(direction === -1 && this.indexes[i].disabledFromRight) {
-            console.log(i,"disabledFromRight = false");
             this.indexes[i].disabledFromRight = false;
             excerpts = excerpts;
           }
@@ -127,12 +127,10 @@ let excerpts = {
         }
       }else if(i !== this.curIndex){
         if(direction === 1 && !this.indexes[i].disabledFromLeft) {
-          console.log(i,"disabledFromLeft = true");
           this.indexes[i].disabledFromLeft = true;
           excerpts = excerpts;
         }
         else if(direction === -1 && !this.indexes[i].disabledFromRight) {
-          console.log(i,"disabledFromRight = true");
           this.indexes[i].disabledFromRight = true;
           excerpts = excerpts;
         }
@@ -141,81 +139,113 @@ let excerpts = {
     return false;
   }
 }
-excerpts.setIndexes();
+excerpts.setTermIndexes();
 
 let beginningIndex;
 let endIndex;
-beginningIndex = traverseNWords(excerpts.indexes[excerpts.curIndex].index, excerpts.indexes[excerpts.curIndex].leftSide).index;
-endIndex = traverseNWords(excerpts.indexes[excerpts.curIndex].index, excerpts.indexes[excerpts.curIndex].rightSide+1).index;
+if(curTermsKeys.length>0){
+  beginningIndex = traverseNWords(excerpts.indexes[excerpts.curIndex].index, excerpts.indexes[excerpts.curIndex].leftSide).index;
+  endIndex = traverseNWords(excerpts.indexes[excerpts.curIndex].index, excerpts.indexes[excerpts.curIndex].rightSide+1).index;
+}
 
 </script>
 <div class="absolute flex w-screen h-screen justify-center items-center">
-  <div class="flex flex-col items-center max-w-[400px] border-black border-2 z-20">
-    <div class="flex">
-      {#if (excerpts.navigate(-1) !== false)}
-        <button on:click={()=>excerpts.navigate(-1,true)}>Prev.</button>
-      {/if}
-      {@html (()=>{
-        beginningIndex = traverseNWords(excerpts.indexes[excerpts.curIndex].index, excerpts.indexes[excerpts.curIndex].leftSide).index;
-        endIndex = traverseNWords(excerpts.indexes[excerpts.curIndex].index, excerpts.indexes[excerpts.curIndex].rightSide+1).index;
+  <div class="bg-[#DBD8D1] flex flex-col items-center max-w-[400px] border-black border-2 z-20">
+    {#if curTermsKeys.length>0}
+      <div class="flex justify-between w-[100%] items-center">
+        <div>
+          {#if curTermsKeysIndex > 0}
+            <button class="navigateButton" on:click={prevTerm}>←</button>
+          {/if}
+        </div>
+        <span style="font-size: 25px">{curTermsKeys[curTermsKeysIndex]}</span>
+        <div>
+          {#if curTermsKeysIndex<curTermsKeys.length-1}
+            <button class="navigateButton" on:click={nextTerm}>→</button>
+          {/if}
+        </div>
+      </div>
+      <hr class="hr"/>
+      <div class="flex mb-3 mt-3">
+          {#if (excerpts.navigate(-1) !== false)}
+            <button class="navigateButton" on:click={()=>excerpts.navigate(-1,true)}>←</button>
+          {/if}
+          {@html (()=>{
+            beginningIndex = traverseNWords(excerpts.indexes[excerpts.curIndex].index, excerpts.indexes[excerpts.curIndex].leftSide).index;
+            endIndex = traverseNWords(excerpts.indexes[excerpts.curIndex].index, excerpts.indexes[excerpts.curIndex].rightSide+1).index;
 
+            let beforeExcerptWhite = "";
+            let beforeExcerptBlack = "";
+            let beforeExcerptRed = "";
 
-        let beforeExcerptWhite = "";
-        let beforeExcerptBlack = "";
-        let beforeExcerptRed = "";
+            let afterExcerptWhite = "";
+            let afterExcerptBlack = "";
+            let afterExcerptRed = "";
 
-        let afterExcerptWhite = "";
-        let afterExcerptBlack = "";
-        let afterExcerptRed = "";
+            let whiteExcerpt = "";
+            let whiteExcerptStartingIndex = 0;
 
-        let whiteExcerpt = "";
-        let whiteExcerptStartingIndex = 0;
+            let excerpt = text.substr(beginningIndex,endIndex-beginningIndex);
+            const leftPreview = traverseNWords(beginningIndex, surroundingPreviewLength*-1);
 
-        let excerpt = text.substr(beginningIndex,endIndex-beginningIndex);
-        const leftPreview = traverseNWords(beginningIndex, surroundingPreviewLength*-1);
+            if(excerpts.curIndex > 0){
+              const leftExcerptIndex = excerpts.navigate(-1);
+              const leftExcerptEndIndex = leftExcerptIndex === false ? 0 : traverseNWords(excerpts.indexes[leftExcerptIndex].index,excerpts.indexes[leftExcerptIndex].rightSide+1).index;
+              const leftPreviewOverlap = Math.max(0,leftExcerptEndIndex-leftPreview.index);
+              beforeExcerptBlack = leftPreview.text.substr(0, leftPreviewOverlap);
+              beforeExcerptWhite = leftPreview.text.substr(leftPreviewOverlap,leftPreview.text.length-leftPreviewOverlap);
 
-        if(excerpts.curIndex > 0){
-          const leftExcerptIndex = excerpts.navigate(-1);
-          const leftExcerptEndIndex = leftExcerptIndex === false ? 0 : traverseNWords(excerpts.indexes[leftExcerptIndex].index,excerpts.indexes[leftExcerptIndex].rightSide+1).index;
-          const leftPreviewOverlap = Math.max(0,leftExcerptEndIndex-leftPreview.index);
-          beforeExcerptBlack = leftPreview.text.substr(0, leftPreviewOverlap);
-          beforeExcerptWhite = leftPreview.text.substr(leftPreviewOverlap,leftPreview.text.length-leftPreviewOverlap);
+              const leftExcerptOverlap = Math.max(0,leftExcerptEndIndex-beginningIndex);
+              beforeExcerptRed = excerpt.substr(0,leftExcerptOverlap);
 
-          const leftExcerptOverlap = Math.max(0,leftExcerptEndIndex-beginningIndex);
-          beforeExcerptRed = excerpt.substr(0,leftExcerptOverlap);
+              whiteExcerptStartingIndex = leftExcerptOverlap;
+            }
 
-          whiteExcerptStartingIndex = leftExcerptOverlap;
-        }
+            const rightPreview = traverseNWords(endIndex, surroundingPreviewLength);
+            whiteExcerpt = excerpt.substr(whiteExcerptStartingIndex,excerpt.length-whiteExcerptStartingIndex);
+            if(excerpts.curIndex < excerpts.indexes.length - 1){
+              let rightExcerptIndex = excerpts.navigate(1);
+              const rightExcerptBeginningIndex = rightExcerptIndex === false ? text.length : traverseNWords(excerpts.indexes[rightExcerptIndex].index,excerpts.indexes[rightExcerptIndex].leftSide).index;
 
-        const rightPreview = traverseNWords(endIndex, surroundingPreviewLength);
-        whiteExcerpt = excerpt.substr(whiteExcerptStartingIndex,excerpt.length-whiteExcerptStartingIndex);
-        if(excerpts.curIndex < excerpts.indexes.length - 1){
-          let rightExcerptIndex = excerpts.navigate(1);
-          const rightExcerptBeginningIndex = rightExcerptIndex === false ? text.length : traverseNWords(excerpts.indexes[rightExcerptIndex].index,excerpts.indexes[rightExcerptIndex].leftSide).index;
+              const rightPreviewOverlap = Math.min(rightPreview.text.length,Math.max(0,rightPreview.index-rightExcerptBeginningIndex));
+              afterExcerptBlack = rightPreview.text.substr(rightPreview.text.length-rightPreviewOverlap,rightPreviewOverlap);
+              afterExcerptWhite = rightPreview.text.substr(0,rightPreview.text.length-rightPreviewOverlap);
+              const rightExcerptOverlap = Math.max(0, endIndex - rightExcerptBeginningIndex);
+              afterExcerptRed = excerpt.substr(excerpt.length - rightExcerptOverlap, rightExcerptOverlap);
+              whiteExcerpt = excerpt.substr(whiteExcerptStartingIndex,endIndex - rightExcerptOverlap);
+              let termFirstIndex = whiteExcerpt.indexOf(curTermsKeys[curTermsKeysIndex]);
+              whiteExcerpt = `<span>${whiteExcerpt.substr(0,termFirstIndex)}</span><span class="bg-[#ae9e8b]">${whiteExcerpt.substr(termFirstIndex,curTermsKeys[curTermsKeysIndex].length)}</span><span>${whiteExcerpt.substr(termFirstIndex+curTermsKeys[curTermsKeysIndex].length,whiteExcerpt.length-termFirstIndex+curTermsKeys[curTermsKeysIndex].length)}</span>`
+            }
+            
+            return `
+              <div>
+                <span class="opacity-50">${leftPreview.index > 0 ? "..." : ""}<span class="bg-[gray] ">${beforeExcerptBlack}</span>${beforeExcerptWhite}</span><span class="bg-[#ffa0a0] text-black">${beforeExcerptRed}</span>${whiteExcerpt}<span class="bg-[#ffa0a0] text-black">${afterExcerptRed}</span><span class="opacity-50">${afterExcerptWhite}<span class="bg-[gray]">${afterExcerptBlack}</span>${rightPreview.index < text.length-1 ? "..." : ""}</span>
+              </div>
+            `
+          })()}
+          {#if (excerpts.navigate(1) !== false)}
+            <button class="navigateButton" on:click={()=>excerpts.navigate(1,true)}>→</button>
+          {/if}
 
-          const rightPreviewOverlap = Math.min(rightPreview.text.length,Math.max(0,rightPreview.index-rightExcerptBeginningIndex));
-          afterExcerptBlack = rightPreview.text.substr(rightPreview.text.length-rightPreviewOverlap,rightPreviewOverlap);
-          afterExcerptWhite = rightPreview.text.substr(0,rightPreview.text.length-rightPreviewOverlap);
-          const rightExcerptOverlap = Math.max(0, endIndex - rightExcerptBeginningIndex);
-          afterExcerptRed = excerpt.substr(excerpt.length - rightExcerptOverlap, rightExcerptOverlap);
-          console.log(text.substr(endIndex,20));
-          whiteExcerpt = excerpt.substr(whiteExcerptStartingIndex,endIndex - rightExcerptOverlap);
-        }
-        
-        return `
-          <div>
-            <span class="opacity-50">${leftPreview.index > 0 ? "..." : ""}<span class="bg-black text-white">${beforeExcerptBlack}</span>${beforeExcerptWhite}</span><span class="bg-[red] text-black">${beforeExcerptRed}</span>${whiteExcerpt}<span class="bg-[red] text-black">${afterExcerptRed}</span><span class="opacity-50">${afterExcerptWhite}<span class="bg-black text-white">${afterExcerptBlack}</span>${rightPreview.index < text.length-1 ? "..." : ""}</span>
-          </div>
-        `
-      })()}
-      {#if (excerpts.navigate(1) !== false)}
-        <button on:click={()=>excerpts.navigate(1,true)}>Next</button>
-      {/if}
-    </div>
-    <div class="flex">
-      <button on:click={prevTerm}>{curTermsKeysIndex > 0 ? "Prev." : ""}</button>
-      <span>{curTermsKeys[curTermsKeysIndex]}</span>
-      <button on:click={nextTerm}>{curTermsKeysIndex<curTermsKeys.length-1?"Next":""}</button>
-    </div>
+      </div>
+      <hr class="hr"/>
+    {:else}
+      No terms
+    {/if}
+    <button class="block" on:click={close}>Close</button>
   </div>
 </div>
+<style>
+  .hr{
+    background-color:black;
+    width:100%;
+    height: 2px;
+  }
+  .navigateButton{
+    font-size: 40px;
+  }
+  *{
+    font-family: Arial;
+    font-size: 17px;
+  }
+</style>

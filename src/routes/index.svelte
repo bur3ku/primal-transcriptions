@@ -14,10 +14,12 @@
   let altIsPressedDown = false;
   let controlIsPressedDown = false;
   let audioBarWidth = "0%";
-  let term = {name:"",parents:[],synonyms:[],excerpts: []};
+  let term = {name:"",parents:[],children:[],synonyms:[],excerpts: []};
   let newSynonym = "";
+  let newParent = "";
   let editor;
   let settingExcerpts = false;
+  let settingTerm = false;
 
   let updateProgressBar = () => {
     const newWidth = (audio.seek() / audio.duration()) * 100;
@@ -150,32 +152,32 @@ onMount(()=>{
   })
   document.addEventListener("keydown",(e)=>{
     //if closing the term editor by pressing "Enter"
-    if(e.key==="Enter" && term.name.length > 0 && (controlIsPressedDown || newSynonym.length===0)){
-      e.preventDefault();
-      addHilightsInEditor(term);
-      terms[term.name] = {synonyms: term.synonyms, parents: term.parents,excerpts: term.excerpts}
-      term = {name:"",parents:[],synonyms:[],excerpts: []};
-      editor.setSelection(editor.scroll.length()-1,0);
-    }
-    else if(e.key==="Control")controlIsPressedDown = true;
+    if(e.key==="Control")controlIsPressedDown = true;
     
     //add or modify a term by pressing "alt" + "+"
     else if(e.key==="+" && altIsPressedDown){
+      document.getElementById('container').style.opacity = 0.2;
       const text = editor.getText(0, editor.scroll.length()-1);
       const selectionIndex = editor.getSelection().index;
       let counter = 0;
-      let lastWord;
-      for(let i = selectionIndex-1; i >= 0; i--){
-        if(text[i]===" " || i===0){
-          i===0?lastWord = text.substr(0,counter+1):lastWord = text.substr(i+1,counter);
+      let wordBeginningIndex;
+      for(let i = selectionIndex; i >= 0; i--){
+        if(text?.[i-1]===" " || i===0){
+          wordBeginningIndex = i;
           break;
         }
         counter++;
       }
-      term.name = lastWord;
-      //set curTerm to 
+      for(let i = selectionIndex; i<text.length;i++){
+        if(text[i]===" " || i===text.length-1){
+          break;
+        }
+        counter++;
+
+      }
+      term.name = text.substr(wordBeginningIndex,counter);
       Object.keys(terms).forEach((key)=>{
-        if(key===lastWord || terms[key].synonyms.some((synonym)=>synonym===lastWord)){
+        if(key===term.name || terms[key].synonyms.some((synonym)=>synonym===term.name)){
           term = terms[key];
           term.name=key;
         }
@@ -195,7 +197,7 @@ onMount(()=>{
       updateProgressBar();
       audio.seek(Math.min(audio.seek() + 5, audio.duration()));
     } else if (e.key==="Tab"){
-      if(settingExcerpts) return;
+      if(settingExcerpts || term.name.length>0) return;
       e.preventDefault();
       updateProgressBar();
       paused?audio.play():audio.pause();
@@ -208,17 +210,42 @@ const setExcerpts = () => {
   settingExcerpts = true;
 }
 
+const dontSetExcerpts = () => {
+  document.getElementById('container').style.opacity = 1;
+  settingExcerpts = false;
+}
 </script>
 <div>
   {#if settingExcerpts}
-    <SetExcerpts editor={editor} terms={terms}/>
+    <SetExcerpts close={dontSetExcerpts} editor={editor} terms={terms}/>
   {/if}
   {#if term.name.length > 0}
+  
   <div class="absolute flex w-screen h-screen justify-center items-center">
     <div class="flex flex-col items-center max-w-[400px] border-black border-2 z-20">
       <p class="m-2">Term: <span class="rounded-sm bg-[#ae9e8b] pr-1 pl-1">{term.name}</span></p>
+      <input placeholder="parent" bind:value={newParent} on:keypress={(e)=>{
+        if(e.key==="Enter"){
+          if(newParent in terms) {
+            terms[newParent].children.push(term.name);
+          }
+          else {
+            terms[newParent] = {name:newParent,parents:[],children:[term.name],synonyms:[],excerpts: []};
+          }
+          term = terms[newParent];
+          newParent = "";
+        }
+      }}/>
       <input id="synonym-input" placeholder="synonym(s)" bind:value={newSynonym} on:keypress={(e)=>{
         if(e.key==="Enter"){
+          if(controlIsPressedDown || newSynonym.length===0){
+            e.preventDefault();
+            addHilightsInEditor(term);
+            terms[term.name] = {synonyms: term.synonyms, parents: term.parents,excerpts: term.excerpts}
+            term = {name:"",parents:[],children:[],synonyms:[],excerpts: []};
+            editor.setSelection(editor.scroll.length()-1,0);
+            document.getElementById('container').style.opacity = 1;
+          }
           newSynonym.split(",").forEach((synonym)=>{
             term.synonyms.push(synonym.trim());
           })
@@ -227,8 +254,15 @@ const setExcerpts = () => {
         }
       }}/>
       <div class="flex flex-wrap gap-2 p-2">
+        Synonyms:
         {#each term.synonyms as synonym}
           <p class="rounded-sm bg-[#ae9e8b] pr-1 pl-1">{synonym}</p>
+        {/each}
+      </div>
+      <div class="flex flex-wrap gap-2 p-2">
+        Children:
+        {#each term.children as child}
+          <p class="cursor-pointer rounded-sm bg-[#ae9e8b] pr-1 pl-1">{child}</p>
         {/each}
       </div>
       <button on:click={()=>{
@@ -236,30 +270,31 @@ const setExcerpts = () => {
         deletedTerms = deletedTerms;
         delete terms[term.name];
         removeHilightsInEditor(term);
-        term={name:"",synonyms:[],parents:[],excerpts: []}
+        term={name:"",synonyms:[],parents:[],children:[],excerpts: []}
       }}>Delete</button>
     </div>
   </div>
 {/if}
-<div id="container">
+<div class="p-5" id="container">
 
     
   <div class="flex items-center justify-center w-1/5 h-1/1">
-    <div class="flx flex-col w-1/1">
-      <label for="upload">
-        <div class="border-black border-2 inline-block p-2">Upload Audio File...</div>
+    <div class="flex flex-col w-1/1 grow">
+      <label id="uploadLabel" class="flex justify-center m-2" for="upload">
+        <div id="uploadFile" class="border-black border-2 p-2 flex justify-center items-center">Upload Audio File...</div>
       </label>
       <input type="file" id="upload" />
-      <div class="flex justify-center">
-        <div id="progressBarContainer" >
-          <div id="progressBar" style="--the-width:{audioBarWidth}"></div>
-        </div>
-      </div>
      
     </div>
     
   </div>
   <div class="flex-col m-10 w-4/5 p-0 h-1/1">
+    <div class="flex justify-center mb-2">
+      <div id="progressBarContainer" >
+        <div id="progressBar" style="--the-width:{audioBarWidth}"></div>
+      </div>
+    </div>
+
     <div class="bg-[#dbd8d1] h-[90%]">
       <div id="editor">
         <p>test neurological 1 neurological 2 neurological 3 neurological 4 neurological 5 test neurological 6 neurological 7 neurological 8 neurological 9 neurological 10 neurological 11 neurological 12 neurological 13 neurological 14 neurological 15 neurological 16 test</p>
@@ -276,11 +311,17 @@ const setExcerpts = () => {
 
 
 <style>
+  #uploadFile{
+    box-shadow: 3px 2px;
+  }
   #editor{
     height: calc(100% - 40px);
   }
+  #uploadLabel{
+    height: 40px;
+  }
   #progressBarContainer{
-    height: 20px;
+    height: 40px;
     border: 2px solid black;
     width: 100%;
   }
